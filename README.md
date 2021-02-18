@@ -761,3 +761,19 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+
+# Improvements
+
+I have do some improvements cause my own blog used the original one but lack of these features.
+
+1. support custumized style and class
+2. support drag events
+3. support selected always
+4. support get node data by condition
+
+To get more information of improvements, better to read this documentation:
+https://onelib.biz/blog/a/602b8b65906abf3c8f946fd7
+
+Welcome to visit my website:
+https://www.linxiaozhou.com
