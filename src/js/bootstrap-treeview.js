@@ -48,7 +48,9 @@
 		selectedColor: '#FFFFFF',
 		selectedBackColor: '#428bca',
 		searchResultColor: '#D9534F',
-		searchResultBackColor: undefined, //'#FFFFFF',
+    searchResultBackColor: undefined, //'#FFFFFF',
+    additionalNodeClass: "",
+    additionalNodeStyle: "",
 
 		enableLinks: false,
 		highlightSelected: true,
@@ -57,7 +59,8 @@
 		showIcon: true,
 		showCheckbox: false,
 		showTags: false,
-		multiSelect: false,
+    multiSelect: false,
+    alwaySelected: false,
 
 		// Event handlers
 		onNodeChecked: undefined,
@@ -69,7 +72,12 @@
 		onNodeUnchecked: undefined,
 		onNodeUnselected: undefined,
 		onSearchComplete: undefined,
-		onSearchCleared: undefined
+    onSearchCleared: undefined,
+    
+    onDragenter: undefined,
+    onDragover: undefined,
+    onDragleave: undefined,
+    onDrop: undefined,
 	};
 
 	_default.options = {
@@ -99,8 +107,10 @@
 			// Initialize / destroy methods
 			init: $.proxy(this.init, this),
 			remove: $.proxy(this.remove, this),
-
+      
 			// Get methods
+			getAllNode: $.proxy(this.getAllNode, this),
+			getNodeByCondition: $.proxy(this.getNodeByCondition, this),
 			getNode: $.proxy(this.getNode, this),
 			getParent: $.proxy(this.getParent, this),
 			getSiblings: $.proxy(this.getSiblings, this),
@@ -149,7 +159,7 @@
 	Tree.prototype.init = function (options) {
 
 		this.tree = [];
-		this.nodes = [];
+    this.nodes = [];
 
 		if (options.data) {
 			if (typeof options.data === 'string') {
@@ -158,12 +168,18 @@
 			this.tree = $.extend(true, [], options.data);
 			delete options.data;
 		}
-		this.options = $.extend({}, _default.settings, options);
+    this.options = $.extend({}, _default.settings, options);
+    
+    //最后一次触发节点Id
+    this.lastSelectedNodeId = null;
+    
+    //最后一次触发时间
+    this.lastSelectTime = null;
 
 		this.destroy();
 		this.subscribeEvents();
 		this.setInitialStates({ nodes: this.tree }, 0);
-		this.render();
+    this.render();
 	};
 
 	Tree.prototype.remove = function () {
@@ -198,15 +214,33 @@
 		this.$element.off('nodeUnchecked');
 		this.$element.off('nodeUnselected');
 		this.$element.off('searchComplete');
-		this.$element.off('searchCleared');
+    this.$element.off('searchCleared');
+    
+		this.$element.off('dragenter');
+		this.$element.off('dragover');
+		this.$element.off('dragleave');
+		this.$element.off('drop');
 	};
 
 	Tree.prototype.subscribeEvents = function () {
 
 		this.unsubscribeEvents();
 
-		this.$element.on('click', $.proxy(this.clickHandler, this));
+    this.$element.on('click', $.proxy(this.clickHandler, this));
 
+		if (typeof (this.options.onDragenter) === 'function') {
+			this.$element.on('dragenter', $.proxy(this.onDragenterEvent, this));
+    }
+		if (typeof (this.options.onDragover) === 'function') {
+			this.$element.on('dragover', $.proxy(this.onDragoverEvent, this));
+    }
+		if (typeof (this.options.onDragleave) === 'function') {
+			this.$element.on('dragleave', $.proxy(this.onDragleaveEvent, this));
+    }
+		if (typeof (this.options.onDrop) === 'function') {
+			this.$element.on('drop', $.proxy(this.onDropEvent, this));
+    }
+    
 		if (typeof (this.options.onNodeChecked) === 'function') {
 			this.$element.on('nodeChecked', this.options.onNodeChecked);
 		}
@@ -315,26 +349,43 @@
 	};
 
 	Tree.prototype.clickHandler = function (event) {
-
-		if (!this.options.enableLinks) event.preventDefault();
+    if (!this.options.enableLinks) event.preventDefault();
+    
+    const currNode = this.getSelected()[0];
 
 		var target = $(event.target);
 		var node = this.findNode(target);
-		if (!node || node.state.disabled) return;
-		
+    if (!node || node.state.disabled) return;
+    
+    if (this.lastSelectedNodeId !== null && this.lastSelectTime) {
+      var time = new Date().getTime();
+      var t = time - this.lastSelectTime;
+      if (this.lastSelectedNodeId == node.nodeId && t < 300) {
+        if (typeof (this.options.ondblclick) === 'function') {
+          this.setSelectedState(node, true, _default.options);
+          this.render();
+          this.options.ondblclick(event, node);
+        }
+        return;
+      }
+    }
+    this.lastSelectedNodeId = node.nodeId;
+    this.lastSelectTime = new Date().getTime();
+
 		var classList = target.attr('class') ? target.attr('class').split(' ') : [];
 		if ((classList.indexOf('expand-icon') !== -1)) {
-
 			this.toggleExpandedState(node, _default.options);
 			this.render();
 		}
 		else if ((classList.indexOf('check-icon') !== -1)) {
-			
 			this.toggleCheckedState(node, _default.options);
 			this.render();
 		}
 		else {
-			
+      if (currNode.id === node.id && this.options.alwaySelected) {
+        return;
+      }
+      
 			if (node.selectable) {
 				this.toggleSelectedState(node, _default.options);
 			} else {
@@ -343,6 +394,27 @@
 
 			this.render();
 		}
+  };
+	
+	Tree.prototype.onDragenterEvent = function (event) {
+		// var target = $(event.target);
+    // var node = this.findNode(target);
+    this.options.onDragenter(event);
+	};
+  Tree.prototype.onDragoverEvent = function (event) {
+		// var target = $(event.target);
+    // var node = this.findNode(target);
+    this.options.onDragover(event);
+	};
+	Tree.prototype.onDragleaveEvent = function (event) {
+		// var target = $(event.target);
+    // var node = this.findNode(target);
+    this.options.onDragleave(event);
+	};
+	Tree.prototype.onDropEvent = function (event) {
+		var target = $(event.target);
+    var node = this.findNode(target);
+    this.options.onDrop(event, node);
 	};
 
 	// Looks up the DOM for the closest parent list item to retrieve the
@@ -402,7 +474,6 @@
 		if (state === node.state.selected) return;
 
 		if (state) {
-
 			// If multiSelect false, unselect previously selected
 			if (!this.options.multiSelect) {
 				$.each(this.findNodes('true', 'g', 'state.selected'), $.proxy(function (index, node) {
@@ -417,7 +488,6 @@
 			}
 		}
 		else {
-
 			// Unselect node
 			node.state.selected = false;
 			if (!options.silent) {
@@ -516,9 +586,10 @@
 				.addClass(node.state.checked ? 'node-checked' : '')
 				.addClass(node.state.disabled ? 'node-disabled': '')
 				.addClass(node.state.selected ? 'node-selected' : '')
-				.addClass(node.searchResult ? 'search-result' : '') 
+        .addClass(node.searchResult ? 'search-result' : '') 
+        .addClass(_this.options.additionalNodeClass) 
 				.attr('data-nodeid', node.nodeId)
-				.attr('style', _this.buildStyleOverride(node));
+				.attr('style', _this.buildStyleOverride(node) + _this.options.additionalNodeStyle);
 
 			// Add indent/spacer to mimic tree structure
 			for (var i = 0; i < (level - 1); i++) {
@@ -581,19 +652,22 @@
 					);
 			}
 
-			// Add text
+      // Add text
+      const text = `<span>
+                      ${node.text}
+                    </span>`;
 			if (_this.options.enableLinks) {
 				// Add hyperlink
 				treeItem
 					.append($(_this.template.link)
 						.attr('href', node.href)
-						.append(node.text)
+						.append(text)
 					);
 			}
 			else {
 				// otherwise just text
 				treeItem
-					.append(node.text);
+					.append(text);
 			}
 
 			// Add tags as badges
@@ -613,7 +687,7 @@
 			if (node.nodes && node.state.expanded && !node.state.disabled) {
 				return _this.buildTree(node.nodes, level);
 			}
-		});
+    });
 	};
 
 	// Define any node level style override for
@@ -645,7 +719,7 @@
 		}
 
 		return 'color:' + color +
-			';background-color:' + backColor + ';';
+			';background-color:' + backColor + ';' + `${!this.options.showBorder ? "border:none;" : ""}`;
 	};
 
 	// Add inline style into head
@@ -705,7 +779,33 @@
 	*/
 	Tree.prototype.getNode = function (nodeId) {
 		return this.nodes[nodeId];
-	};
+  };
+  
+	/**
+		Returns all nodes object
+		@return {Object} node - all nodes
+	*/
+	Tree.prototype.getAllNode = function () {
+		return this.nodes;
+  };
+  
+	/**
+		Returns a single node object that matches the given attr and its value.
+		@param {String} attr - attribute name
+		@param {Any} value - attribute name
+		@return {Object} node - Matching node
+	*/
+	Tree.prototype.getNodeByCondition = function (attr, value) {
+    if (!this.nodes) { return null; }
+    
+    for (const node of this.nodes) {
+      if (node[attr] === value) {
+        return node;
+      }
+    }
+    return null;
+  };
+  
 
 	/**
 		Returns the parent node of a given node, if valid otherwise returns undefined.
